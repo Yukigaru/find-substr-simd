@@ -1,6 +1,5 @@
 #include <immintrin.h>
 #include <functional>
-#include <tuple>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <benchmark/benchmark.h>
@@ -35,7 +34,7 @@ int naive_find(const char *str, const char *sub) {
   return -1;
 }
 
-int avx128_find_4_sad(const char *str, size_t len, const char *pattern) {
+int sse_find_4(const char *str, size_t len, const char *pattern) {
   __m128i cmp = _mm_set1_epi32(0);
   memcpy((void *)&cmp, (const void *)pattern, 4);
 
@@ -102,57 +101,52 @@ std::string gen_benchmark_text(size_t len) {
 }
 
 /**********************************************/
-void benchmark_naive(benchmark::State &state) {
+void bm_naive(benchmark::State &state) {
   auto text = gen_benchmark_text(state.range(0));
 
   for (auto _: state) {
     benchmark::DoNotOptimize(naive_find(text.data(), pattern.data()));
   }
 }
-BENCHMARK(benchmark_naive)->Range(8, 2 << 16);
+BENCHMARK(bm_naive)->Range(8, 2 << 16);
 
 /**********************************************/
-void benchmark_avx128sad(benchmark::State &state) {
+void bm_sse_find_4(benchmark::State &state) {
   auto text = gen_benchmark_text(state.range(0));
 
   for (auto _: state) {
-    benchmark::DoNotOptimize(avx128_find_4_sad(text.data(), text.size(), pattern.c_str()));
+    benchmark::DoNotOptimize(sse_find_4(text.data(), text.size(), pattern.c_str()));
   }
 }
-BENCHMARK(benchmark_avx128sad)->Range(8, 2 << 16);
+BENCHMARK(bm_sse_find_4)->Range(8, 2 << 16);
 
 /**********************************************/
-void benchmark_strstr(benchmark::State &state) {
+void bm_strstr(benchmark::State &state) {
   auto text = gen_benchmark_text(state.range(0));
 
   for (auto _: state) {
     benchmark::DoNotOptimize(std::strstr(text.data(), pattern.data()));
   }
 }
-BENCHMARK(benchmark_strstr)->Range(8, 2 << 16);
+BENCHMARK(bm_strstr)->Range(8, 2 << 16);
 
 /**********************************************/
-void benchmark_string_find(benchmark::State &state) {
+void bm_string_find(benchmark::State &state) {
   auto text = gen_benchmark_text(state.range(0));
 
   for (auto _: state) {
     benchmark::DoNotOptimize(text.find(pattern));
   }
 }
-BENCHMARK(benchmark_string_find)->Range(8, 2 << 16);
+BENCHMARK(bm_string_find)->Range(8, 2 << 16);
 
-/////////////////////////////////
 /**********************************************/
 int main(int argc, char **argv) {
   // needed for benchmark data
   std::generate_n(std::back_inserter(rand_chars), 100, []() { return 'A' + rand() % 55; });
 
-  // firstly run unit tests for my implementation
-  unit_test_find_4([](const char *text, const char *pattern) {
-      auto text_len = strlen(text);
-      auto res = avx128_find_4_sad((const char *)text, text_len, (const char *)pattern);
-      return res;
-  });
+  // run unit tests for my implementation (on success, nothing is printed)
+  unit_test_find_4([](const char *text, const char *pattern) { return sse_find_4((const char *)text, strlen(text), (const char *)pattern); });
 
   // then run benchmarks
   benchmark::Initialize(&argc, argv);
